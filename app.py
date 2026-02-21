@@ -136,45 +136,20 @@ def run_ai_filter(df: pd.DataFrame, columns: list[str], user_prompt: str, model:
         )
 
         try:
-            response = client.responses.create(
+            response = client.chat.completions.create(
                 model=model,
-                input=[
+                messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_message},
                 ],
-                text={
-                    "format": {
-                        "type": "json_schema",
-                        "name": "job_filter_results",
-                        "strict": True,
-                        "schema": {
-                            "type": "object",
-                            "properties": {
-                                "results": {
-                                    "type": "array",
-                                    "items": {
-                                        "type": "object",
-                                        "properties": {
-                                            "row_id": {"type": "integer"},
-                                            "decision": {"type": "string", "enum": ["KEEP", "DROP"]},
-                                            "reason": {"type": "string"},
-                                        },
-                                        "required": ["row_id", "decision", "reason"],
-                                        "additionalProperties": False,
-                                    },
-                                }
-                            },
-                            "required": ["results"],
-                            "additionalProperties": False,
-                        },
-                    }
-                },
-                max_output_tokens=4000,
+                response_format={"type": "json_object"},
             )
-            if not response.output_text or not response.output_text.strip():
+            content = response.choices[0].message.content
+            if not content or not content.strip():
                 progress.empty()
                 return None, None, "AI 응답이 비어 있습니다. 배치 크기를 낮추거나 다시 시도해 주세요."
-            items = parse_ai_results(response.output_text)
+            items = parse_ai_results(content)
+
         except Exception as exc:
             progress.empty()
             return None, None, f"AI 요청 실패: {exc}"
@@ -217,7 +192,7 @@ st.set_page_config(page_title="Job Filter Tool", page_icon="🔍", layout="wide"
 st.markdown(
     """
 <style>
-    .main {
+    .stApp {
         background-color: #f8f9fa;
     }
     .stButton>button {
@@ -279,7 +254,7 @@ def main():
         st.divider()
 
         api_key_input = ""
-        ai_model = "gpt-5-mini"
+        ai_model = "gpt-4o-mini"
         ai_prompt = ""
         ai_cols_raw = ""
         ai_batch_size = 20
@@ -288,7 +263,7 @@ def main():
         if ai_enabled:
             st.subheader("AI 설정")
             api_key_input = st.text_input("OpenAI API Key", type="password", placeholder="sk-...")
-            ai_model = st.selectbox("AI 모델", ["gpt-5-mini", "gpt-5-nano"], index=0)
+            ai_model = st.selectbox("AI 모델", ["gpt-4o-mini", "gpt-4o"], index=0)
             ai_prompt = st.text_area(
                 "AI 필터 프롬프트",
                 placeholder="예: 데이터 분석 포지션만 KEEP. 영업/마케팅 중심이면 DROP.",
